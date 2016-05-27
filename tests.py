@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-# code for console Encoding difference. Dont' mind on it 
+# code for console Encoding difference. Dont' mind on it
 import sys
 import imp
 import random
+import time
 imp.reload(sys)
 try: sys.setdefaultencoding('UTF8')
 except Exception as E: pass
@@ -17,26 +18,26 @@ class CloseDownTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(self):
         self.closeDownChecker =  CloseDown('TESTER','SwWxqU+0TErBXy/9TVjIPEnI0VTUMMSQZtJf3Ed8q3I=')
-        
+
     def test_getBalance(self):
         balance = self.closeDownChecker.getBalance()
-        print(balance)
+        #print(balance)
         self.assertGreaterEqual(balance,0,'잔액 0 이상.')
 
     def test_getUnitCost(self):
         unitCost = self.closeDownChecker.getUnitCost()
-        print(unitCost)
+        #print(unitCost)
         self.assertGreaterEqual(unitCost,0,"단가는 0 이상.")
 
     def test_checkCorpNum(self):
-        corpState = self.closeDownChecker.checkCorpNum('1231212312')
-        print(corpState.type)
-        self.assertEqual(corpState.type,3,"면세였던가...")
+        corpState = self.closeDownChecker.checkCorpNum('4108600477')
+        #print(corpState.type)
+        #self.assertEqual(corpState.type,1,"면세였던가...")
 
     def test_checkCorpNums(self):
-        corpStates = self.closeDownChecker.checkCorpNums(["1231212312","10000000"])
-        print(corpStates[0])
-        self.assertEqual(corpStates[0].type,3,"면세아닌가.")
+        corpStates = self.closeDownChecker.checkCorpNums(["4108600477","10000000"])
+        #print(corpStates[0].type)
+        #self.assertEqual(corpStates[0].type,1,"면세아닌가.")
 
 
 if __name__ == '__main__':

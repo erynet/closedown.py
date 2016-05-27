@@ -5,18 +5,20 @@
 #
 # Author : Kim Seongjun (pallet027@gmail.com)
 # Written : 2015-06-15
-# Thanks for your interest. 
+# Thanks for your interest.
 from io import BytesIO
 import datetime
 import json
 from json import JSONEncoder
 from urllib import quote
 from collections import namedtuple
+
 try:
     import http.client as httpclient
 except ImportError:
     import httplib as httpclient
 import mimetypes
+from time import time as stime
 
 import linkhub
 from linkhub import LinkhubException
@@ -24,6 +26,7 @@ from linkhub import LinkhubException
 ServiceID = 'CLOSEDOWN';
 ServiceURL = 'closedown.linkhub.co.kr';
 APIVersion = '1.0';
+
 
 def __with_metaclass(meta, *bases):
     class metaclass(meta):
@@ -40,8 +43,8 @@ class Singleton(type):
         return cls._instances[cls]
 
 class CloseDown(__with_metaclass(Singleton,object)):
-    def __init__(self,LinkID,SecretKey):
-        """ 생성자. 
+    def __init__(self,LinkID,SecretKey,TimeOut = 15):
+        """ 생성자.
             args
                 LinkID : 링크허브에서 발급받은 LinkID
                 SecretKey : 링크허브에서 발급받은 SecretKey
@@ -51,11 +54,17 @@ class CloseDown(__with_metaclass(Singleton,object)):
         self.__scopes = ["170"]
         self.__tokenCache = None
         self.__conn = None
+        self.__connectedAt = stime()
+        self.__timeOut = TimeOut
 
     def _getConn(self):
-        if self.__conn == None:
-            self.__conn = httpclient.HTTPSConnection(ServiceURL);
-        return self.__conn
+
+        if stime() - self.__connectedAt >= self.__timeOut or self.__conn == None:
+            self.__conn = httpclient.HTTPSConnection(ServiceURL)
+            self.__connectedAt = stime()
+            return self.__conn
+        else:
+            return self.__conn
 
     def _getToken(self):
 
@@ -67,12 +76,12 @@ class CloseDown(__with_metaclass(Singleton,object)):
         refreshToken = True
 
         if token != None :
-            refreshToken = token.expiration[:-5] < datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
-            
+            refreshToken = token.expiration[:-5] < linkhub.getTime()
+
         if refreshToken :
             try:
                 token = linkhub.generateToken(self.__linkID,self.__secretKey, ServiceID, None, self.__scopes)
-                
+
                 self.__tokenCache = token
 
             except LinkhubException as LE:
@@ -84,12 +93,14 @@ class CloseDown(__with_metaclass(Singleton,object)):
 
         headers = {"x-api-version" : APIVersion}
         headers["Authorization"] = "Bearer " + self._getToken().session_token
-        
-        self._getConn().request('GET',url,'',headers)
 
-        response = self._getConn().getresponse()
+        conn = self._getConn()
+
+        conn.request('GET',url,'',headers)
+
+        response = conn.getresponse()
         responseString = response.read()
-        
+
         if response.status != 200 :
             err = Utils.json2obj(responseString)
             raise CloseDownException(int(err.code),err.message)
@@ -101,9 +112,11 @@ class CloseDown(__with_metaclass(Singleton,object)):
         headers = {"x-api-version" : APIVersion, "Content-Type" : "Application/json"}
         headers["Authorization"] = "Bearer " + self._getToken().session_token
 
-        self._getConn().request('POST',url,postData,headers)
+        conn = self._getConn()
 
-        response = self._getConn().getresponse()
+        conn.request('POST',url,postData,headers)
+
+        response = conn.getresponse()
         responseString = response.read()
 
         if response.status != 200 :
@@ -128,7 +141,7 @@ class CloseDown(__with_metaclass(Singleton,object)):
         """ 주소검색 단가 확인
             return
                 전송 단가 by float
-            raise 
+            raise
                 CloseDownException
         """
 
@@ -142,7 +155,7 @@ class CloseDown(__with_metaclass(Singleton,object)):
             return
                 corpstate : 휴폐업상태 정보.
                     .corpNum : 사업자번호
-                    .type : 사업자 유형 
+                    .type : 사업자 유형
                         [null : 알수없음,
                          1 : 부가가치세 일반과세자,
                          2 : 부가가치세 면세과세자,
@@ -161,7 +174,7 @@ class CloseDown(__with_metaclass(Singleton,object)):
                 CloseDownException
         """
         try:
-           
+
             url = "/Check?CN=" + CorpNum;
 
             return self._httpget(url)
@@ -176,7 +189,7 @@ class CloseDown(__with_metaclass(Singleton,object)):
             return
                 corpstate[] : 휴폐업상태 정보의 배열
                     .corpNum : 사업자번호
-                    .type : 사업자 유형 
+                    .type : 사업자 유형
                         [null : 알수없음,
                          1 : 부가가치세 일반과세자,
                          2 : 부가가치세 면세과세자,
@@ -195,9 +208,9 @@ class CloseDown(__with_metaclass(Singleton,object)):
                 CloseDownException
         """
         try:
-           
+
             url = "/Check";
-            
+
             postData = self._stringtify(CorpNumList)
 
             return self._httppost(url,postData)
@@ -219,7 +232,7 @@ class JsonObject(object):
             d = dic.__dict__
         except AttributeError :
             d = dic._asdict()
-        
+
         self.__dict__.update(d)
 
     def __getattr__(self,name):
@@ -227,14 +240,14 @@ class JsonObject(object):
 
 class CloseDownEncoder(JSONEncoder):
     def default(self, o):
-        return o.__dict__    
+        return o.__dict__
 
 
 class Utils:
     @staticmethod
     def _json_object_hook(d): return JsonObject(namedtuple('JsonObject', d.keys())(*d.values()))
-    
+
     @staticmethod
-    def json2obj(data): 
-        if(type(data) is bytes): data = data.decode()
-        return json.loads(data, object_hook=Utils._json_object_hook)
+    def json2obj(data):
+        if (type(data) is bytes): data = data.decode()
+        return json.loads(data, object_hook = Utils._json_object_hook)
