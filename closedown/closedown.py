@@ -5,7 +5,7 @@
 #
 # Author : Kim Seongjun (pallet027@gmail.com)
 # Written : 2015-06-15
-# Thanks for your interest. 
+# Thanks for your interest.
 from io import BytesIO
 import datetime
 import json
@@ -18,7 +18,6 @@ try:
 except ImportError:
     import httplib as httpclient
 import mimetypes
-
 from time import time as stime
 
 import linkhub
@@ -33,22 +32,19 @@ def __with_metaclass(meta, *bases):
     class metaclass(meta):
         def __new__(cls, name, this_bases, d):
             return meta(name, bases, d)
-
     return type.__new__(metaclass, 'temporary_class', (), {})
 
 
 class Singleton(type):
     _instances = {}
-
     def __call__(cls, *args, **kwargs):
         if cls not in cls._instances:
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
         return cls._instances[cls]
 
-
-class CloseDown(__with_metaclass(Singleton, object)):
-    def __init__(self, LinkID, SecretKey, TimeOut=15):
-        """ 생성자. 
+class CloseDown(__with_metaclass(Singleton,object)):
+    def __init__(self,LinkID,SecretKey,TimeOut = 15):
+        """ 생성자.
             args
                 LinkID : 링크허브에서 발급받은 LinkID
                 SecretKey : 링크허브에서 발급받은 SecretKey
@@ -62,77 +58,70 @@ class CloseDown(__with_metaclass(Singleton, object)):
         self.__timeOut = TimeOut
 
     def _getConn(self):
+
         if stime() - self.__connectedAt >= self.__timeOut or self.__conn == None:
             self.__conn = httpclient.HTTPSConnection(ServiceURL)
             self.__connectedAt = stime()
             return self.__conn
         else:
-            try:
-                self.__conn.request("GET", "/Time")
-                res = self.__conn.getresponse()
-                _ = res.read()
-            except httpclient.HTTPException:
-                self.__conn = httpclient.HTTPSConnection(ServiceURL)
-                self.__connectedAt = stime()
-                return self.__conn
             return self.__conn
 
     def _getToken(self):
 
         try:
             token = self.__tokenCache
-        except KeyError:
+        except KeyError :
             token = None
 
         refreshToken = True
 
-        if token != None:
-            refreshToken = token.expiration[:-5] < datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+        if token != None :
+            refreshToken = token.expiration[:-5] < linkhub.getTime()
 
-        if refreshToken:
+        if refreshToken :
             try:
-                token = linkhub.generateToken(self.__linkID, self.__secretKey, ServiceID, None, self.__scopes)
+                token = linkhub.generateToken(self.__linkID,self.__secretKey, ServiceID, None, self.__scopes)
 
                 self.__tokenCache = token
 
             except LinkhubException as LE:
-                raise CloseDownException(LE.code, LE.message)
+                raise CloseDownException(LE.code,LE.message)
 
         return token
 
-    def _httpget(self, url, CorpNum=None, UserID=None):
+    def _httpget(self,url,CorpNum = None,UserID = None):
 
-        headers = {"x-api-version": APIVersion}
+        headers = {"x-api-version" : APIVersion}
         headers["Authorization"] = "Bearer " + self._getToken().session_token
 
         conn = self._getConn()
 
-        conn.request('GET', url, '', headers)
+        conn.request('GET',url,'',headers)
 
         response = conn.getresponse()
         responseString = response.read()
 
-        if response.status != 200:
+        if response.status != 200 :
             err = Utils.json2obj(responseString)
-            raise CloseDownException(int(err.code), err.message)
+            raise CloseDownException(int(err.code),err.message)
         else:
             return Utils.json2obj(responseString)
 
-    def _httppost(self, url, postData):
+    def _httppost(self,url,postData):
 
-        headers = {"x-api-version": APIVersion, "Content-Type": "Application/json"}
+        headers = {"x-api-version" : APIVersion, "Content-Type" : "Application/json"}
         headers["Authorization"] = "Bearer " + self._getToken().session_token
 
         conn = self._getConn()
 
-        conn.request('POST', url, postData, headers)
+        conn.request('POST',url,postData,headers)
 
         response = conn.getresponse()
         responseString = response.read()
 
-        if response.status != 200:
+        if response.status != 200 :
             err = Utils.json2obj(responseString)
-            raise CloseDownException(int(err.code), err.message)
+            raise CloseDownException(int(err.code),err.message)
         else:
             return Utils.json2obj(responseString)
 
@@ -146,13 +135,13 @@ class CloseDown(__with_metaclass(Singleton, object)):
         try:
             return linkhub.getPartnerBalance(self._getToken())
         except LinkhubException as LE:
-            raise CloseDownException(LE.code, LE.message)
+                raise CloseDownException(LE.code,LE.message)
 
     def getUnitCost(self):
         """ 주소검색 단가 확인
             return
                 전송 단가 by float
-            raise 
+            raise
                 CloseDownException
         """
 
@@ -166,7 +155,7 @@ class CloseDown(__with_metaclass(Singleton, object)):
             return
                 corpstate : 휴폐업상태 정보.
                     .corpNum : 사업자번호
-                    .type : 사업자 유형 
+                    .type : 사업자 유형
                         [null : 알수없음,
                          1 : 부가가치세 일반과세자,
                          2 : 부가가치세 면세과세자,
@@ -191,7 +180,7 @@ class CloseDown(__with_metaclass(Singleton, object)):
             return self._httpget(url)
 
         except LinkhubException as LE:
-            raise CloseDownException(LE.code, LE.message)
+            raise CloseDownException(LE.code,LE.message)
 
     def checkCorpNums(self, CorpNumList):
         """ 휴폐업 상태 조회
@@ -200,7 +189,7 @@ class CloseDown(__with_metaclass(Singleton, object)):
             return
                 corpstate[] : 휴폐업상태 정보의 배열
                     .corpNum : 사업자번호
-                    .type : 사업자 유형 
+                    .type : 사업자 유형
                         [null : 알수없음,
                          1 : 부가가치세 일반과세자,
                          2 : 부가가치세 면세과세자,
@@ -224,33 +213,30 @@ class CloseDown(__with_metaclass(Singleton, object)):
 
             postData = self._stringtify(CorpNumList)
 
-            return self._httppost(url, postData)
+            return self._httppost(url,postData)
 
         except LinkhubException as LE:
-            raise CloseDownException(LE.code, LE.message)
+            raise CloseDownException(LE.code,LE.message)
 
-    def _stringtify(self, obj):
-        return json.dumps(obj, cls=CloseDownEncoder)
-
+    def _stringtify(self,obj):
+        return json.dumps(obj,cls=CloseDownEncoder)
 
 class CloseDownException(Exception):
-    def __init__(self, code, message):
+    def __init__(self,code,message):
         self.code = code
         self.message = message
 
-
 class JsonObject(object):
-    def __init__(self, dic):
+    def __init__(self,dic):
         try:
             d = dic.__dict__
-        except AttributeError:
+        except AttributeError :
             d = dic._asdict()
 
         self.__dict__.update(d)
 
-    def __getattr__(self, name):
+    def __getattr__(self,name):
         return None
-
 
 class CloseDownEncoder(JSONEncoder):
     def default(self, o):
@@ -264,4 +250,4 @@ class Utils:
     @staticmethod
     def json2obj(data):
         if (type(data) is bytes): data = data.decode()
-        return json.loads(data, object_hook=Utils._json_object_hook)
+        return json.loads(data, object_hook = Utils._json_object_hook)

@@ -1,12 +1,12 @@
 ####
 closedown.py
 ####
-closedown 1.0.0
+closedown 1.0.1
 
 휴폐업조회 API for Python.
 
 * requirements
- 
+
   * Python 2.6+
   * linkhub
 
