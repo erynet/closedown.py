@@ -43,7 +43,7 @@ class Singleton(type):
         return cls._instances[cls]
 
 class CloseDown(__with_metaclass(Singleton,object)):
-    def __init__(self,LinkID,SecretKey,TimeOut = 15):
+    def __init__(self,LinkID,SecretKey,TimeOut = 60):
         """ 생성자.
             args
                 LinkID : 링크허브에서 발급받은 LinkID
