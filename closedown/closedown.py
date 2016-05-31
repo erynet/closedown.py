@@ -57,9 +57,8 @@ class CloseDown(__with_metaclass(Singleton,object)):
         self.__connectedAt = stime()
         self.__timeOut = TimeOut
 
-    def _getConn(self):
-
-        if stime() - self.__connectedAt >= self.__timeOut or self.__conn == None:
+    def _getConn(self,ForceReconnect=False):
+        if ForceReconnect or self.__conn == None or stime() - self.__connectedAt >= self.__timeOut:
             self.__conn = httpclient.HTTPSConnection(ServiceURL)
             self.__connectedAt = stime()
             return self.__conn
@@ -94,12 +93,29 @@ class CloseDown(__with_metaclass(Singleton,object)):
         headers = {"x-api-version" : APIVersion}
         headers["Authorization"] = "Bearer " + self._getToken().session_token
 
-        conn = self._getConn()
+        # SEH 의 EXCEPTION_EXECUTE_HANDLER 를 모방해서, 한번의 실패에 한해 강제 재연결을 수행한다.
+        # 그 후에 발생하는 에러에 대해서는 그냥 예외처리한다.
+        for i in range(2):
+            try:
+                conn = self._getConn()
+                conn.request('GET',url,'',headers)
 
-        conn.request('GET',url,'',headers)
-
-        response = conn.getresponse()
-        responseString = response.read()
+                response = conn.getresponse()
+                responseString = response.read()
+                break
+            except httpclient.HTTPException:
+                if i == 0:
+                    # 처음 예외가 발생했을 경우는 재연결을 시도한다.
+                    try:
+                        self._getConn(ForceReconnect=True)
+                        continue
+                    except Exception:
+                        # 재연결에서 어떤 에러가 발생한다면?
+                        # 처리할 수 없는 상황, 아마도 서버에의 초기 연결이 실패한경우
+                        raise CloseDownException(int(-99999999),'UNEXPECTED EXCEPTION')
+                else:
+                    # 이미 한번 예외 처리를 했음에도 불구하고 에러가 난 경우.
+                    raise CloseDownException(int(-99999999),'UNEXPECTED EXCEPTION')
 
         if response.status != 200 :
             err = Utils.json2obj(responseString)
@@ -112,12 +128,29 @@ class CloseDown(__with_metaclass(Singleton,object)):
         headers = {"x-api-version" : APIVersion, "Content-Type" : "Application/json"}
         headers["Authorization"] = "Bearer " + self._getToken().session_token
 
-        conn = self._getConn()
+        # SEH 의 EXCEPTION_EXECUTE_HANDLER 를 모방해서, 한번의 실패에 한해 강제 재연결을 수행한다.
+        # 그 후에 발생하는 에러에 대해서는 그냥 예외처리한다.
+        for i in range(2):
+            try:
+                conn = self._getConn()
+                conn.request('POST', url, postData, headers)
 
-        conn.request('POST',url,postData,headers)
-
-        response = conn.getresponse()
-        responseString = response.read()
+                response = conn.getresponse()
+                responseString = response.read()
+                break
+            except httpclient.HTTPException:
+                if i == 0:
+                    # 처음 예외가 발생했을 경우는 재연결을 시도한다.
+                    try:
+                        self._getConn(ForceReconnect=True)
+                        continue
+                    except Exception:
+                        # 재연결에서 어떤 에러가 발생한다면?
+                        # 처리할 수 없는 상황, 아마도 서버에의 초기 연결이 실패한경우
+                        raise CloseDownException(int(-99999999), 'UNEXPECTED EXCEPTION')
+                else:
+                    # 이미 한번 예외 처리를 했음에도 불구하고 에러가 난 경우.
+                    raise CloseDownException(int(-99999999), 'UNEXPECTED EXCEPTION')
 
         if response.status != 200 :
             err = Utils.json2obj(responseString)
